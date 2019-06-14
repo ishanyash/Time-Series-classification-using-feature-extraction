@@ -5,28 +5,27 @@ Created on Mon May 27 15:05:51 2019
 @author: Ishan Yash
 """
 
-from tslearn.metrics import cdist_dtw
+
 import numpy as np
 from sklearn import svm
 from tslearn.preprocessing import TimeSeriesScalerMeanVariance
 from tslearn.piecewise import PiecewiseAggregateApproximation
-from tslearn.piecewise import SymbolicAggregateApproximation, OneD_SymbolicAggregateApproximation
-from pyts.metrics import dtw, itakura_parallelogram, sakoe_chiba_band
+from tslearn.piecewise import SymbolicAggregateApproximation
+from pyts.metrics import dtw
 from pyts.metrics.dtw import (cost_matrix, accumulated_cost_matrix,
                               _return_path, _multiscale_region)
+from pyts.classification import BOSSVS
 
-
-print('Feature-ED-DTW-SAX-PAA-SVM')
-nps = input("Enter the number of segments for PAA: ")
-n_paa_segments = int(nps) #number of segments for PAA
-nss = input('Enter the number if segments for SAX: ')
-n_sax_symbols = int(nss)
-w = input('Enter the window size:')
-window_size = int(w)
+print('Feature-ED-DTW-SAX-SVM')
+n_paa_segments = int(input("Enter the number of segments for PAA: ")) #number of segments for PAA
+n_sax_symbols = int(input('Enter the number if segments for SAX: '))
+window_size = int(input('Enter the window size:'))
+window_size_boss = int(input('Enter the window size for BOSSVS:'))
+ws = int(input('Enter the word size:')) 
+nb = int(input('Enter the number of bins:'))
 
 PATH = "G:/Coding/ML/UCRArchive_2018/" # Change this value if necessary
-ds = input('Enter the Time series Dataset: ')
-dataset = str(ds) 
+dataset = str(input('Enter the Time series Dataset: ')) 
 
 file_train = PATH + str(dataset) + "/" + str(dataset) + "_TRAIN.tsv"
 file_test = PATH + str(dataset) + "/" + str(dataset) + "_TEST.tsv"
@@ -38,12 +37,7 @@ X_train, y_train = fulltrain[:, 1:], fulltrain[:, 0]
 X_test, y_test = fulltest[:, 1:], fulltest[:, 0]
 
 #Feature extraction DTW
-'''
-DTW_train= cdist_dtw(X_train,X_train)
-DTW_test = cdist_dtw(X_test, X_train)  
-'''
-
-# Dynamic Time Warping: classic
+#Dynamic Time Warping: classic
 DTW_Classic_test = []
 DTW_Classic_train = []
 for i in range(len(X_test)):
@@ -54,8 +48,7 @@ for i in range(len(X_test)):
 
 for i in range(len(X_train)):
     for j in range(len(X_train)):
-        dtw_classic, path_classic = dtw(X_train[i], X_train[j], dist='square',
-                                method='classic', return_path=True)
+        dtw_classic, path_classic = dtw(X_train[i], X_train[j], dist='square',method='classic', return_path=True)
         DTW_Classic_train.append(dtw_classic)
 
 DTW_Classic_train = np.array(DTW_Classic_train)
@@ -99,7 +92,7 @@ EDist_train = np.array(EDist_train)
 EDist_train.resize(y_train.shape[0],int(len(EDist_train)/y_train.shape[0]))
 EDist_test = np.array(EDist_test)
 EDist_test.resize(y_test.shape[0],int(len(EDist_test)/y_test.shape[0]))
-
+'''
 #PAA transform + PAA feature extraction
 
 paa = PiecewiseAggregateApproximation(n_segments=n_paa_segments)
@@ -110,26 +103,6 @@ PAA_test = Xtest_paa[:,:,0]
 PAA_train = Xtrain_paa[:,:,0]
 
 '''
-#PAA distance calculation
-
-PAADist_train = []
-PAADist_test = []
-
-for i in range(len(y_train)):
-    for j in range(len(y_train)):
-        dist3 = paa.distance(Xtrain_paa[i,:],Xtest_paa[j,:])
-        PAADist_train.append(dist3)
-
-for i in range(len(y_test)):
-    for j in range(len(y_train)):
-        dist4 = paa.distance(Xtest_paa[i,:],Xtrain_paa[j,:])
-        PAADist_test.append(dist4)   
-
-PAADist_train = np.array(PAADist_train)
-PAADist_train.resize(y_train.shape[0],int(len(PAADist_train)/y_train.shape[0]))
-PAADist_test = np.array(PAADist_test)
-PAADist_test.resize(y_test.shape[0],int(len(PAADist_test)/y_test.shape[0]))
-'''
 #SAX Transform + SAX feature extraction
 
 sax = SymbolicAggregateApproximation(n_segments=n_paa_segments, alphabet_size_avg=n_sax_symbols)
@@ -138,36 +111,50 @@ Xtest_sax = sax.inverse_transform(sax.fit_transform(X_test))
 
 SAX_test = Xtest_sax[:,:,0]
 SAX_train = Xtrain_sax[:,:,0]
-'''
-#SAX distance calculation
-SAXDist_train = []
+
 SAXDist_test = []
-
-for i in range(len(y_train)):
-    for j in range(len(y_train)):
-        dist3 = sax.distance(Xtrain_sax[i,:],Xtest_sax[j,:])
-        SAXDist_train.append(dist3)
-
 for i in range(len(y_test)):
     for j in range(len(y_train)):
-        dist4 = sax.distance(Xtest_sax[i,:],Xtrain_sax[j,:])
-        SAXDist_test.append(dist4)
-
+        #dtw_sakoechiba, path_sakoechiba = dtw(SAX_test[i], SAX_train[j], dist='square', method='sakoechiba',options={'window_size': window_size}, return_path=True)
+        dtw_classic, path_classic = dtw(SAX_test[i], SAX_train[j], dist='square',method='classic', return_path=True)
+        #dist = np.sqrt(np.sum((np.array(SAX_test[i,:])-np.array(SAX_train[j,:]))**2))
+        #SAXDist_test.append(dtw_sakoechiba)
+        SAXDist_test.append(dtw_classic)
+        #SAXDist_test.append(dist)
+        
+SAXDist_train = []
+for i in range(len(y_train)):
+    for j in range(len(y_train)):
+        #dtw_sakoechiba, path_sakoechiba = dtw(SAX_train[i], SAX_train[j], dist='square', method='sakoechiba',options={'window_size': window_size}, return_path=True)
+        dtw_classic, path_classic = dtw(SAX_train[i], SAX_train[j], dist='square',method='classic', return_path=True)
+        #dist1 = np.sqrt(np.sum((np.array(SAX_train[i,:])-np.array(SAX_train[j,:]))**2))
+        #SAXDist_train.append(dtw_sakoechiba)
+        SAXDist_train.append(dtw_classic)
+        #SAXDist_train.append(dist1)
+        
 SAXDist_train = np.array(SAXDist_train)
 SAXDist_train.resize(y_train.shape[0],int(len(SAXDist_train)/y_train.shape[0]))
 SAXDist_test = np.array(SAXDist_test)
-SAXDist_test.resize(y_test.shape[0],int(len(SAXDist_test)/y_test.shape[0]))   
+SAXDist_test.resize(y_test.shape[0],int(len(SAXDist_test)/y_test.shape[0]))
+
+
+'''
+# BOSSVS transformation
+bossvs = BOSSVS(word_size=ws, n_bins=nb, window_size=window_size_boss)
+bossvs.fit(X_train, y_train)
+tfidf = bossvs.tfidf_
+vocabulary_length = len(bossvs.vocabulary_)
+BOSSVS_train = bossvs.decision_function(X_train)
+BOSSVS_test = bossvs.decision_function(X_test)
 '''
 
 #Feature concatenation
 
-a = np.concatenate((PAA_test,SAX_test),axis=1)
-b = np.concatenate((EDist_test,DTW_Classic_test,DTW_sakoe_test),axis=1)
-test = np.concatenate((a,b),axis=1)
+test = np.concatenate((EDist_test,DTW_Classic_test,DTW_sakoe_test,SAXDist_test,SAX_test),axis=1)
+train = np.concatenate((EDist_train,DTW_Classic_train,DTW_sakoe_train,SAXDist_train,SAX_train),axis=1)
 
-c = np.concatenate((PAA_train,SAX_train),axis=1)
-d = np.concatenate((EDist_train,DTW_Classic_train,DTW_sakoe_train),axis=1)
-train =  np.concatenate((c,d),axis=1)
+#test = np.concatenate((DTW_Classic_test,DTW_sakoe_test,SAXDist_test),axis=1)
+#train = np.concatenate((DTW_Classic_train,DTW_sakoe_train,SAXDist_train),axis=1)
 
 train_concat_mv = TimeSeriesScalerMeanVariance().fit_transform(train)
 test_concat_mv = TimeSeriesScalerMeanVariance().fit_transform(test)
